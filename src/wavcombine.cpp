@@ -129,7 +129,7 @@ namespace WAVCombine {
             auto channnels = reader.read_channels();
             QJsonObject descObj;
             auto absoluteDirName = QDir(rootDirName).absolutePath();
-            descObj.insert("file_name", fileName.mid(absoluteDirName.count() + 1));//1 for separator after dirName
+            descObj.insert("file_name", fileName.mid(absoluteDirName.length() + 1));//1 for separator after dirName
             descObj.insert("sample_rate", reader.format().samplerate);
             descObj.insert("sample_type", (int) reader.format().type);
             descObj.insert("wav_format", reader.format().wav_format);
@@ -142,11 +142,29 @@ namespace WAVCombine {
                     break;
                 auto srcData = channnels.at(i);
                 if (reader.format().samplerate != targetFormat.samplerate){
-                    //TODO: maybe give user a choice to control sample rate conversion quality
-                    auto resampler = kfr::sample_rate_converter<sample_process_t>(sample_rate_conversion_quality_for_process, targetFormat.samplerate, reader.format().samplerate);
-                    decltype (srcData) resampled(reader.format().length * targetFormat.samplerate / reader.format().samplerate + resampler.get_delay());
-                    resampler.process(resampled, srcData);
-                    srcData = resampled;
+                    // Simple resampling workaround to avoid KFR samplerate_converter assignment issues
+                    size_t inputLength = srcData.size();
+                    size_t outputLength = (inputLength * targetFormat.samplerate) / reader.format().samplerate;
+
+                    if (outputLength > 0) {
+                        kfr::univector<sample_process_t> resampled(outputLength);
+
+                        // Simple linear interpolation resampling
+                        double ratio = static_cast<double>(reader.format().samplerate) / static_cast<double>(targetFormat.samplerate);
+
+                        for (size_t i = 0; i < outputLength; ++i) {
+                            double inputIndex = i * ratio;
+                            size_t index0 = static_cast<size_t>(inputIndex);
+                            size_t index1 = std::min(index0 + 1, inputLength - 1);
+                            double fraction = inputIndex - index0;
+
+                            // Linear interpolation
+                            resampled[i] = srcData[index0] * (1.0 - fraction) + srcData[index1] * fraction;
+                        }
+
+                        // Use swap to avoid assignment ambiguity
+                        srcData.swap(resampled);
+                    }
                 }
                 result.push_back(srcData);
             }

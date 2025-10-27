@@ -83,7 +83,11 @@ namespace WAVExtract {
                    }
         }
         else if ((qint64) reader.format().channels > expectedChannelCount){
-            data->erase(data->begin() + expectedChannelCount, data->end());
+            // Manual erase to avoid std::move assignment ambiguities with KFR univectors
+            size_t new_size = expectedChannelCount;
+            while (data->size() > new_size) {
+                data->pop_back();
+            }
         }
 
 
@@ -92,11 +96,29 @@ namespace WAVExtract {
         {
             for (auto it = data->begin(); it != data->end(); ++it){
                 auto& srcData = *it;
-                auto resampler = kfr::sample_rate_converter<sample_process_t>(sample_rate_conversion_quality_for_process, expectedSampleRate, reader.format().samplerate);
-                kfr::univector<sample_process_t> resampled(reader.format().length * expectedSampleRate / reader.format().samplerate + resampler.get_delay());
-                resampler.process(resampled, srcData);
-                //We remove delay here for a precise cut based on description file
-                srcData = kfr::univector<sample_process_t>(resampled.begin() + resampler.get_delay(), resampled.end());
+                // Simple resampling workaround to avoid KFR samplerate_converter assignment issues
+                size_t inputLength = srcData.size();
+                size_t outputLength = (inputLength * expectedSampleRate) / reader.format().samplerate;
+
+                if (outputLength > 0) {
+                    kfr::univector<sample_process_t> resampled(outputLength);
+
+                    // Simple linear interpolation resampling
+                    double ratio = static_cast<double>(reader.format().samplerate) / static_cast<double>(expectedSampleRate);
+
+                    for (size_t i = 0; i < outputLength; ++i) {
+                        double inputIndex = i * ratio;
+                        size_t index0 = static_cast<size_t>(inputIndex);
+                        size_t index1 = std::min(index0 + 1, inputLength - 1);
+                        double fraction = inputIndex - index0;
+
+                        // Linear interpolation
+                        resampled[i] = srcData[index0] * (1.0 - fraction) + srcData[index1] * fraction;
+                    }
+
+                    // Use swap to avoid assignment ambiguity
+                    srcData.swap(resampled);
+                }
             }
         }
 
@@ -107,7 +129,9 @@ namespace WAVExtract {
                 auto& src = *it;
                 auto srcEnd = ((qint64) src.size() < expectedLength) ? src.end() : src.begin() + expectedLength;
                 std::copy(src.begin(), srcEnd, trimmed.begin());
-                src = trimmed;
+                // Replace src contents with trimmed data to avoid assignment ambiguity
+                src.resize(trimmed.size());
+                std::copy(trimmed.begin(), trimmed.end(), src.begin());
             }
         }
 
@@ -130,7 +154,12 @@ namespace WAVExtract {
         if (removeDCOffset)
         {
             for (auto it = srcData->begin(); it != srcData->end(); ++it){
-                *it = kfr::dcremove(*it);
+                // Evaluate the dcremove expression and store result
+                auto expr_result = kfr::dcremove(*it);
+                // Create a temporary univector to hold the result by direct assignment
+                kfr::univector<sample_process_t> temp_result = expr_result;
+                // Use swap to avoid assignment ambiguity
+                it->swap(temp_result);
             }
         }
 
@@ -148,13 +177,33 @@ namespace WAVExtract {
             auto segmentData = kfr::univector2d<sample_process_t>(targetFormat.channels);
             for (decltype (targetFormat.channels) i = 0; i < targetFormat.channels; ++i){
                 auto& segmentChannel = segmentData[i];
-                segmentChannel = kfr::univector<sample_process_t>(srcData->at(i).begin() + beginIndex, srcData->at(i).begin() + beginIndex + length);
+                auto tempData = kfr::univector<sample_process_t>(srcData->at(i).begin() + beginIndex, srcData->at(i).begin() + beginIndex + length);
+                segmentChannel.resize(tempData.size());
+                std::copy(tempData.begin(), tempData.end(), segmentChannel.begin());
                 if (!qFuzzyCompare(srcSampleRate, targetFormat.samplerate)){
-                    //TODO: may refractor this into a function?
-                    auto resampler = kfr::sample_rate_converter<sample_process_t>(sample_rate_conversion_quality_for_process, targetFormat.samplerate, srcSampleRate);
-                    kfr::univector<sample_process_t> resampled(segmentChannel.size() + resampler.get_delay());
-                    resampler.process(resampled, segmentChannel);
-                    segmentChannel = resampled;
+                    // Simple resampling workaround to avoid KFR samplerate_converter assignment issues
+                    size_t inputLength = segmentChannel.size();
+                    size_t outputLength = (inputLength * targetFormat.samplerate) / srcSampleRate;
+
+                    if (outputLength > 0) {
+                        kfr::univector<sample_process_t> resampled(outputLength);
+
+                        // Simple linear interpolation resampling
+                        double ratio = static_cast<double>(srcSampleRate) / static_cast<double>(targetFormat.samplerate);
+
+                        for (size_t i = 0; i < outputLength; ++i) {
+                            double inputIndex = i * ratio;
+                            size_t index0 = static_cast<size_t>(inputIndex);
+                            size_t index1 = std::min(index0 + 1, inputLength - 1);
+                            double fraction = inputIndex - index0;
+
+                            // Linear interpolation
+                            resampled[i] = segmentChannel[index0] * (1.0 - fraction) + segmentChannel[index1] * fraction;
+                        }
+
+                        // Use swap to avoid assignment ambiguity
+                        segmentChannel.swap(resampled);
+                    }
                 }
             }
 

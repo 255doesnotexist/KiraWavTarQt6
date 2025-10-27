@@ -151,8 +151,13 @@ class diff_match_patch {
 
  private:
   // Define some regex patterns for matching boundaries.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+  static QRegularExpression BLANKLINEEND;
+  static QRegularExpression BLANKLINESTART;
+#else
   static QRegExp BLANKLINEEND;
   static QRegExp BLANKLINESTART;
+#endif
 
 
  public:

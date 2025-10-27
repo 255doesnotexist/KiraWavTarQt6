@@ -7,7 +7,7 @@ QString removeSuffix(QString string, const QString& suffix, Qt::CaseSensitivity 
         *removed = suffixPos != -1;
     if (suffixPos != -1)
     {
-        return string.remove(suffixPos, suffix.count());
+        return string.remove(suffixPos, suffix.length());
     }
     return string;
 }
@@ -19,7 +19,7 @@ QString removePrefix(QString string, const QString& prefix, Qt::CaseSensitivity 
         *removed = prefixPos != -1;
     if (prefixPos != -1)
     {
-        return string.remove(prefixPos, prefix.count());
+        return string.remove(prefixPos, prefix.length());
     }
     return string;
 }
@@ -27,7 +27,7 @@ QString removePrefix(QString string, const QString& prefix, Qt::CaseSensitivity 
 QString getDigitSuffix(const QString& string, int* position, bool considerNegative)
 {
     QString result{};
-    for (int current = string.count() - 1; current >= 0; --current)
+    for (int current = string.length() - 1; current >= 0; --current)
     {
         if (auto c = string.at(current);c.isDigit()){
             result.prepend(c);
@@ -41,7 +41,7 @@ QString getDigitSuffix(const QString& string, int* position, bool considerNegati
             }
             if (position)
             {
-                *position = (current != string.count() - 1) ? current + 1 : -1;
+                *position = (current != string.length() - 1) ? current + 1 : -1;
             }
             break;
         }

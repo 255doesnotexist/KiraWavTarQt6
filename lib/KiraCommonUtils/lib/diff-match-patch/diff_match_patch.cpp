@@ -64,7 +64,7 @@ QString Diff::strOperation(Operation op) {
 QString Diff::toString() const {
     QString prettyText = text;
     // Replace linebreaks with Pilcrow signs.
-    prettyText.replace('\n', L'\u00b6');
+    prettyText.replace('\n', QChar(0x00b6));
     return QString("Diff(") + strOperation(operation) + QString(",\"")
             + prettyText + QString("\")");
 }
@@ -954,8 +954,13 @@ int diff_match_patch::diff_cleanupSemanticScore(const QString &one,
     bool whitespace2 = nonAlphaNumeric2 && char2.isSpace();
     bool lineBreak1 = whitespace1 && char1.category() == QChar::Other_Control;
     bool lineBreak2 = whitespace2 && char2.category() == QChar::Other_Control;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    bool blankLine1 = lineBreak1 && BLANKLINEEND.match(one).hasMatch();
+    bool blankLine2 = lineBreak2 && BLANKLINESTART.match(two).hasMatch();
+#else
     bool blankLine1 = lineBreak1 && BLANKLINEEND.indexIn(one) != -1;
     bool blankLine2 = lineBreak2 && BLANKLINESTART.indexIn(two) != -1;
+#endif
 
     if (blankLine1 || blankLine2) {
         // Five points for blank lines.
@@ -978,8 +983,13 @@ int diff_match_patch::diff_cleanupSemanticScore(const QString &one,
 
 
 // Define some regex patterns for matching boundaries.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+QRegularExpression diff_match_patch::BLANKLINEEND = QRegularExpression("\\n\\r?\\n$");
+QRegularExpression diff_match_patch::BLANKLINESTART = QRegularExpression("^\\r?\\n\\r?\\n");
+#else
 QRegExp diff_match_patch::BLANKLINEEND = QRegExp("\\n\\r?\\n$");
 QRegExp diff_match_patch::BLANKLINESTART = QRegExp("^\\r?\\n\\r?\\n");
+#endif
 
 
 void diff_match_patch::diff_cleanupEfficiency(QList<Diff> &diffs) {
@@ -1134,7 +1144,7 @@ void diff_match_patch::diff_cleanupMerge(QList<Diff> &diffs) {
                                 if (thisDiff->operation != EQUAL) {
                                     throw "Previous diff should have been an equality.";
                                 }
-                                thisDiff->text += text_insert.leftRef(commonlength);
+                                thisDiff->text += text_insert.left(commonlength);
                                 pointer.next();
                             } else {
                                 pointer.insert(Diff(EQUAL, text_insert.left(commonlength)));
@@ -1429,7 +1439,7 @@ int diff_match_patch::match_main(const QString &text, const QString &pattern,
         throw "Null inputs. (match_main)";
     }
 
-    loc = std::max(0, std::min(loc, text.length()));
+    loc = std::max(0, std::min(loc, static_cast<int>(text.length())));
     if (text == pattern) {
         // Shortcut (potentially not guaranteed by the algorithm)
         return 0;
@@ -1497,7 +1507,7 @@ int diff_match_patch::match_bitap(const QString &text, const QString &pattern,
         // Use the result from this iteration as the maximum for the next.
         bin_max = bin_mid;
         int start = std::max(1, loc - bin_mid + 1);
-        int finish = std::min(loc + bin_mid, text.length()) + pattern.length();
+        int finish = std::min(loc + bin_mid, static_cast<int>(text.length())) + pattern.length();
 
         rd = new int[finish + 2];
         rd[finish + 1] = (1 << d) - 1;
@@ -1593,7 +1603,7 @@ void diff_match_patch::patch_addContext(Patch &patch, const QString &text) {
            && pattern.length() < Match_MaxBits - Patch_Margin - Patch_Margin) {
         padding += Patch_Margin;
         pattern = safeMid(text, std::max(0, patch.start2 - padding),
-                          std::min(text.length(), patch.start2 + patch.length1 + padding)
+                          std::min(static_cast<int>(text.length()), patch.start2 + patch.length1 + padding)
                           - std::max(0, patch.start2 - padding));
     }
     // Add one chunk for good luck.
@@ -1607,7 +1617,7 @@ void diff_match_patch::patch_addContext(Patch &patch, const QString &text) {
     }
     // Add the suffix.
     QString suffix = safeMid(text, patch.start2 + patch.length1,
-                             std::min(text.length(), patch.start2 + patch.length1 + padding)
+                             std::min(static_cast<int>(text.length()), patch.start2 + patch.length1 + padding)
                              - (patch.start2 + patch.length1));
     if (!suffix.isEmpty()) {
         patch.diffs.append(Diff(EQUAL, suffix));
@@ -1909,7 +1919,7 @@ QString diff_match_patch::patch_addPadding(QList<Patch> &patches) {
         // Grow last equality.
         Diff &lastDiff = lastPatchDiffs.last();
         int extraLength = paddingLength - lastDiff.text.length();
-        lastDiff.text += nullPadding.leftRef(extraLength);
+        lastDiff.text += nullPadding.left(extraLength);
         lastPatch.length1 += extraLength;
         lastPatch.length2 += extraLength;
     }
@@ -1975,7 +1985,7 @@ void diff_match_patch::patch_splitMax(QList<Patch> &patches) {
                     bigpatch.diffs.removeFirst();
                 } else {
                     // Deletion or equality.  Only take as much as we can stomach.
-                    diff_text = diff_text.left(std::min(diff_text.length(),
+                    diff_text = diff_text.left(std::min(static_cast<int>(diff_text.length()),
                                                         patch_size - patch.length1 - Patch_Margin));
                     patch.length1 += diff_text.length();
                     start1 += diff_text.length();
@@ -2038,15 +2048,49 @@ QList<Patch> diff_match_patch::patch_fromText(const QString &textline) {
     }
     QStringList text = textline.split("\n", Qt::SkipEmptyParts);
     Patch patch;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    QRegularExpression patchHeader("^@@ -(\\d+),?(\\d*) \\+(\\d+),?(\\d*) @@$");
+#else
     QRegExp patchHeader("^@@ -(\\d+),?(\\d*) \\+(\\d+),?(\\d*) @@$");
+#endif
     char sign;
     QString line;
     while (!text.isEmpty()) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        QRegularExpressionMatch match = patchHeader.match(text.front());
+        if (!match.hasMatch()) {
+            throw QString("Invalid patch string: %1").arg(text.front());
+        }
+#else
         if (!patchHeader.exactMatch(text.front())) {
             throw QString("Invalid patch string: %1").arg(text.front());
         }
+#endif
 
         patch = Patch();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        patch.start1 = match.captured(1).toInt();
+        if (match.captured(2).isEmpty()) {
+            patch.start1--;
+            patch.length1 = 1;
+        } else if (match.captured(2) == "0") {
+            patch.length1 = 0;
+        } else {
+            patch.start1--;
+            patch.length1 = match.captured(2).toInt();
+        }
+
+        patch.start2 = match.captured(3).toInt();
+        if (match.captured(4).isEmpty()) {
+            patch.start2--;
+            patch.length2 = 1;
+        } else if (match.captured(4) == "0") {
+            patch.length2 = 0;
+        } else {
+            patch.start2--;
+            patch.length2 = match.captured(4).toInt();
+        }
+#else
         patch.start1 = patchHeader.cap(1).toInt();
         if (patchHeader.cap(2).isEmpty()) {
             patch.start1--;
@@ -2068,6 +2112,7 @@ QList<Patch> diff_match_patch::patch_fromText(const QString &textline) {
             patch.start2--;
             patch.length2 = patchHeader.cap(4).toInt();
         }
+#endif
         text.removeFirst();
 
         while (!text.isEmpty()) {

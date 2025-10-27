@@ -24,11 +24,13 @@ namespace fplus {
     {
         return concat_qt_adapt_internal(lists);
     }
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     template <typename ValueType>
     QVector<ValueType> concat(const QVector<QVector<ValueType>>& lists)
     {
         return concat_qt_adapt_internal(lists);
     }
+#endif
 
     template <typename F, typename T>
     auto transform_and_concat(F f, const QList<T>& xs)
@@ -37,12 +39,14 @@ namespace fplus {
         return concat_qt_adapt_internal(transform(f, xs));
     }
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     template <typename F, typename T>
     auto transform_and_concat(F f, const QVector<T>& xs)
     {
         internal::trigger_static_asserts<internal::unary_function_tag, F, typename QVector<T>::value_type>();
         return concat_qt_adapt_internal(transform(f, xs));
     }
+#endif
 
     template <typename F>
     auto transform_and_concat(F f, const QStringList& xs)
@@ -80,34 +84,41 @@ namespace fplus {
     }
 
     namespace internal {
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
         template<class T> struct has_order<QVector<T>> : public std::true_type{};
+#endif
         template<class T> struct has_order<QList<T>> : public std::true_type{};
         template<> struct has_order<QJsonArray> : public std::true_type{};
         template<> struct has_order<QVariantList> : public std::true_type{};
 
 
         //same_container_new_type, used for construct a new container of same elem type.
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
         template<class T, class NewT, int SizeOffset> struct same_cont_new_t<QVector<T>, NewT, SizeOffset>{typedef class QVector<NewT> type;};
+#endif
         template<class T, class NewT, int SizeOffset> struct same_cont_new_t<QList<T>, NewT, SizeOffset>{typedef class QList<NewT> type;};
         template<class NewT, int SizeOffset> struct same_cont_new_t<QVariantList, NewT, SizeOffset>{typedef class QList<NewT> type;};
         template<class NewT, int SizeOffset> struct same_cont_new_t<QStringList, NewT, SizeOffset>{typedef class QList<NewT> type;};
-        template<class NewT, int SizeOffset> struct same_cont_new_t<QJsonArray, NewT, SizeOffset>{typedef class QVector<NewT> type;};
+        template<class NewT, int SizeOffset> struct same_cont_new_t<QJsonArray, NewT, SizeOffset>{typedef class QList<NewT> type;};
 
         template<class Key, class T, class NewKey, class NewVal> struct SameMapTypeNewTypes<QMap<Key, T>, NewKey, NewVal> { typedef QMap<NewKey, NewVal> type; };
         template<class Key, class T, class NewKey, class NewVal> struct SameMapTypeNewTypes<QHash<Key, T>, NewKey, NewVal> { typedef QHash<NewKey, NewVal> type; };
 
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
         template<typename T>
         struct can_self_assign<QVector<T>>
         {
             using type = std::integral_constant<bool, true>;
         };
+#endif
         template<typename T>
         struct can_self_assign<QList<T>>
         {
             using type = std::integral_constant<bool, true>;
         };
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
         //It seems that fplus want to reuse a rvalue const QVector<T>...
         template <typename T>
         struct can_reuse<const QVector<T>>
@@ -117,10 +128,11 @@ namespace fplus {
             using cannot_reuse = std::integral_constant<bool, true>;
             using value = reuse_container_bool_t<bool, can_assign::value && !cannot_reuse::value>;
         };
+#endif
         template <typename T>
         struct can_reuse<const QList<T>>
         {
-            using dContainer = typename std::decay<QVector<T>>::type;
+            using dContainer = typename std::decay<QList<T>>::type;
             using can_assign = can_self_assign_t<typename dContainer::value_type>;
             using cannot_reuse = std::integral_constant<bool, true>;
             using value = reuse_container_bool_t<bool, can_assign::value && !cannot_reuse::value>;

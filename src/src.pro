@@ -2,6 +2,12 @@ QT       += core gui concurrent network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
+# Qt6 specific configuration
+greaterThan(QT_MAJOR_VERSION, 5) {
+    QT += core5compat
+    CONFIG += c++17
+}
+
 TARGET = KiraWAVTar
 
 CONFIG += c++17
@@ -9,9 +15,8 @@ VERSION = 1.2.0
 
 RC_ICONS = resources/icon.ico
 
-# You can make your code fail to compile if it uses deprecated APIs.
-# In order to do so, uncomment the following line.
-#DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
+# Enable deprecation warnings for APIs deprecated before Qt 6.0.0
+DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000
 
 SOURCES += \
     extracttargetselectmodel.cpp \

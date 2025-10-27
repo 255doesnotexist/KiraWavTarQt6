@@ -211,13 +211,14 @@ void WAVExtractDialog::extractWorkDone()
             QMessageBox msgBoxInfomation;
             msgBoxInfomation.setIcon(QMessageBox::Icon::Critical);
             msgBoxInfomation.setText(tr("Error occurred when extracting."));
-            msgBoxInfomation.setInformativeText(QtConcurrent::mappedReduced<QString>(result,
+            auto errorDescriptionsFuture = QtConcurrent::mappedReduced<QString>(result,
                                                                   std::function([](const ExtractErrorDescription& value)->QString{return value.description;}),
             [](QString& result, const QString& desc){
                                           if (result.isEmpty())
                                             result = reportTextStyle;
                                           result.append(QString("<p class='critical'>%1</p>").arg(desc));
-                                      }));
+                                      });
+            msgBoxInfomation.setInformativeText(errorDescriptionsFuture.result());
             msgBoxInfomation.setStandardButtons(QMessageBox::Ok);
             msgBoxInfomation.exec();
             QMessageBox msgBoxRetry;
