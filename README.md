@@ -85,6 +85,23 @@ Other dependencies are all ``git subtree`` in this repo, and all configured in `
 
 It's recommended to using Qt 5.15 since I use it while developing this. But Qt 6 shouldn't change that much to break code compatibility with this project (no guarantee though).
 
+### Successfully Built Environment
+This project has been successfully built and tested with:
+- Qt Version: 6.9.2 (with qt6-qt5compat-devel)
+- KFR Library: Modified version with assignment operator fixes (included in lib/kfr/)
+- Compiler: GCC 15 (C++17 standard)
+- Platform: Linux (Fedora 42)
+- Build Date: October 2025
+
+The Qt6 migration includes compatibility fixes for deprecated APIs and KFR library assignment ambiguities.
+
+### KFR Library Integration
+For Qt6 compatibility and build convenience, this project now includes the complete KFR source code in lib/kfr/ with the following modifications:
+- Fixed assignment ambiguities in include/kfr/dsp/sample_rate_conversion.hpp (lines 110-112, 126-131)
+- Fixed vec.hpp compilation error in include/kfr/simd/vec.hpp (line 395)
+
+These modifications resolve expression template assignment issues that occur with newer compilers while maintaining KFR's functionality. The local KFR source ensures consistent builds across different environments.
+
 ## License
 
     This program is free software: you can redistribute it and/or modify
